@@ -16,7 +16,7 @@ Native Android GPS walking-route and geotagged photograph recorder for arboricul
 - Foreground location service continues when the UI is closed or another app is open, subject to Android settings and GPS reception.
 - 3 m minimum step or 15 second sampling; GPS fixes older than 15 s, accuracy worse than 30 m or implausible jumps are rejected.
 - Camera creates full-resolution JPEG files and associates them with the latest available GPS fix (within 2 minutes). If none is available, image is saved without a marker; exported original photograph is retained.
-- **Stop** recording at end. Use **Export project ZIP / KMZ**, choose email/Drive/files share destination.
+- **Stop** recording at end. Tap **Save ZIP to Device** to select Downloads or another folder using Android's file picker, or **Share / Email Project ZIP** to send the same export via email, Drive or another app. Both options preserve the complete ZIP including KMZ, KML, CSV and original photos.
 - ZIP includes `survey.kmz` (KML+photos embedded), `track.kml`, `track.csv`, `photos.csv`, `project.txt`, and original JPEG photographs. Open KMZ in Google Earth; KML/CSV in QGIS.
 - GPS interruptions longer than 45 s are represented by separately styled *inferred gap* lines. **Never interpret interpolated links as inspected ground.**
 - Project data remains local even when offline. Exports are portable copies; store the exported ZIP safely.
