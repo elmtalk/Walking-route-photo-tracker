@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private var pendingPhoto: File? = null
     private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
     private val photosRequest = 202
+    private val saveZipRequest = 203
     private val permissionRequest = 201
     private val handler = Handler(Looper.getMainLooper())
 
@@ -41,7 +42,8 @@ class MainActivity : Activity() {
         button("START / RESUME GPS RECORDING") { startTracking() }
         button("STOP TRACKING") { stopTracking() }
         button("TAKE GEOLOCATED PHOTO") { takePhoto() }
-        button("EXPORT PROJECT ZIP / KMZ") { exportProject() }
+        button("SAVE ZIP TO DEVICE") { exportProject(false) }
+        button("SHARE / EMAIL PROJECT ZIP") { exportProject(true) }
         button("OPEN SAVED PROJECT") { chooseProject() }
         status = TextView(this).apply { textSize = 15f; setPadding(0, 20, 0, 0) }
         root.addView(status)
@@ -108,6 +110,25 @@ class MainActivity : Activity() {
     @Deprecated("Legacy camera result")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == saveZipRequest) {
+            val path = prefs.getString("pending_export_path", null)
+            prefs.edit().remove("pending_export_path").apply()
+            if (resultCode == RESULT_OK && data?.data != null && path != null) {
+                try {
+                    val source = File(path)
+                    if (!source.isFile) throw IOException("Temporary ZIP is missing")
+                    val destination = contentResolver.openOutputStream(data.data!!)
+                        ?: throw IOException("Cannot write to selected location")
+                    destination.use { output ->
+                        source.inputStream().use { input -> input.copyTo(output) }
+                    }
+                    toast("Project ZIP saved to device")
+                } catch (e: Exception) {
+                    toast("Save failed: ${e.message}")
+                }
+            }
+            return
+        }
         if (requestCode == photosRequest) {
             val f = pendingPhoto
             if (resultCode == RESULT_OK && f != null && f.exists() && f.length() > 0) {
@@ -162,7 +183,7 @@ class MainActivity : Activity() {
         }
         return result.append("</Document></kml>").toString()
     }
-    private fun exportProject() {
+    private fun exportProject(share: Boolean) {
         if (!remember()) return
         val dir = folder()
         val outDir = File(cacheDir, "exports"); outDir.mkdirs()
@@ -189,13 +210,25 @@ class MainActivity : Activity() {
                 }
             }
             kmzFile.delete()
-            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", output)
-            val send = Intent(Intent.ACTION_SEND).apply {
-                type = "application/zip"; putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (share) {
+                val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", output)
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"; putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(send, "Share GroundTrace project ZIP"))
+                toast("Project ZIP ready")
+            } else {
+                // Let Android choose Downloads, Documents, or another storage provider.
+                // This requires no broad storage permission.
+                prefs.edit().putString("pending_export_path", output.absolutePath).apply()
+                val save = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_TITLE, output.name)
+                }
+                startActivityForResult(save, saveZipRequest)
             }
-            startActivity(Intent.createChooser(send, "Send GroundTrace project ZIP"))
-            toast("Project ZIP ready")
         } catch (e: Exception) { toast("Export failed: ${e.message}") }
     }
     private fun refresh() {
